@@ -165,6 +165,7 @@
                         android:layout_height="92dp"
                         android:layout_weight="1"
 
+                        android:onClick="guardarConfiguracion"
                         android:text="Button" />
 
                     <Space

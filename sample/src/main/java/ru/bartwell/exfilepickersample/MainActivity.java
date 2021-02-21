@@ -4,15 +4,14 @@ import android.Manifest;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
+
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.AppCompatCheckBox;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.EditText;
-import android.widget.RadioGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -22,6 +21,12 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.LinkedList;
 
@@ -33,7 +38,9 @@ import ru.bartwell.exfilepickersample.util.Objeto;
 public class MainActivity extends AppCompatActivity {
 
     private static final int CODE_PERMISSIONS = 1;
+
     private static final int EX_FILE_PICKER_RESULT = 0;
+
     private static final String EXTRA_MESSAGE = "";
 
     String directorioActual;
@@ -43,6 +50,8 @@ public class MainActivity extends AppCompatActivity {
     LinkedList<String> listaSha=new LinkedList<String>();
 
     LinkedList<String> imagenes=new LinkedList<String>();
+
+    LinkedList<String> rutaimagenes=new LinkedList<String>();
 
     LinkedList<String> carpetas=new LinkedList<String>();
 
@@ -54,6 +63,64 @@ public class MainActivity extends AppCompatActivity {
 
     CheckBox hidden,newFolder,sort;
     String datoHost = "0",datoHidden= "0",datoNewFolder= "1",datoSort="1",datoExtensionesAllow= "0";
+
+    public void guardarConfiguracion(View v){
+
+        try {
+
+            ArrayList<Objeto> arrayList1 = new ArrayList<Objeto>();
+
+            host=findViewById(R.id.host);
+
+            datoHost=host.getText().toString();
+
+            hidden=findViewById(R.id.ocultarArchivos);
+
+            datoHidden="0";
+
+            if(hidden.isSelected()){
+                datoHidden="1";
+            }
+
+            newFolder=findViewById(R.id.crearCarpeta);
+
+            datoNewFolder="0";
+
+            if(newFolder.isSelected()){
+                datoNewFolder="1";
+            }
+
+            sort=findViewById(R.id.activarSort);
+
+            datoSort="0";
+
+            if(sort.isSelected()){
+                datoSort="1";
+            }
+
+            extensionesPermitidas=findViewById(R.id.extensiones);
+
+            datoExtensionesAllow=extensionesPermitidas.getText().toString();
+
+            datoHost= Metodos.eliminarEspacios(datoHost);
+
+            arrayList1.add(new Objeto(datoHost + " " + datoHidden + " " + datoNewFolder + " " + datoSort + " "
+                    + datoExtensionesAllow));
+
+            ObjectOutputStream escribiendoFichero = new ObjectOutputStream(
+                    new FileOutputStream("/storage/emulated/0/peridroid.dat"));
+
+            escribiendoFichero.writeObject(arrayList1);
+
+            escribiendoFichero.close();
+
+        }
+
+        catch(Exception e){
+e.printStackTrace();
+        }
+
+    }
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -98,91 +165,72 @@ public class MainActivity extends AppCompatActivity {
 
         try {
 
-            config = Metodos.leer("peridroid.dat");
+            config = Metodos.leer("/storage/emulated/0/peridroid.dat");
         }
 
         catch(Exception e){
-
-        }
-
-    }
-    public void guardarFichero(View v){
-
-        try {
-
-            ArrayList<Objeto> arrayList1 = new ArrayList<Objeto>();
-
-            host=findViewById(R.id.host);
-
-            datoHost=host.getText().toString();
-
-            hidden=findViewById(R.id.ocultarArchivos);
-
-            datoHidden="0";
-
-            if(hidden.isSelected()){
-                datoHidden="1";
-            }
-
-            newFolder=findViewById(R.id.crearCarpeta);
-
-            datoNewFolder="0";
-
-            if(newFolder.isSelected()){
-                datoNewFolder="1";
-            }
-
-            sort=findViewById(R.id.activarSort);
-
-            datoSort="0";
-
-            if(sort.isSelected()){
-                datoSort="1";
-            }
-
-            extensionesPermitidas=findViewById(R.id.extensiones);
-
-            datoExtensionesAllow=extensionesPermitidas.getText().toString();
-
-            datoHost= Metodos.eliminarEspacios(datoHost);
-
-            arrayList1.add(new Objeto(datoHost + "«" + datoHidden + "»" + datoNewFolder + "¬" + datoSort + "═"
-                    + datoExtensionesAllow));
-
-            ObjectOutputStream escribiendoFichero = new ObjectOutputStream(
-                    new FileOutputStream("peridroid.dat"));
-
-            escribiendoFichero.writeObject(arrayList1);
-
-            escribiendoFichero.close();
-
-        }
-
-        catch(Exception e){
-
+e.printStackTrace();
         }
 
     }
 
-    private String saberNombreCarpeta() throws IOException, JSONException {
 
-        JSONArray imagenesBD;
+    private String saberNombreCarpeta() throws IOException, JSONException, InterruptedException {
 
-        JSONObject json;
-
-        int respuesta;
-
-        json = Metodos.readJsonFromUrl("https://apiperiquito.herokuapp.com/recibo-json.php?imagenes=a");
-
-        imagenesBD = json.getJSONArray("imagenes_bd");
-
-        String carpetaSha=imagenesBD.get(0).toString();
-
-        carpetaSha=carpetaSha.substring(0, carpetas.indexOf("."))+"_";
-
-        return carpetaSha;
+        return consultaJson("https://apiperiquito.herokuapp.com/recibo-json.php?imagenes=a","imagenes_bd");
 
     }
+
+    private String consultaJson(final String api, final String campo) throws InterruptedException {
+        final String[] carpetaSha = {""};
+
+        try  {
+
+            Thread thread = new Thread(new Runnable() {
+
+                @Override
+
+                public void run() {
+
+                    JSONArray imagenesBD;
+
+                    JSONObject json;
+
+                    try {
+
+                        json = Metodos.readJsonFromUrl(api);
+
+                        imagenesBD = json.getJSONArray(campo);
+
+                        carpetaSha[0] = imagenesBD.get(0).toString();
+
+
+                        carpetaSha[0] = carpetaSha[0].substring(0, carpetaSha[0].indexOf(".")) + "_";
+
+                        carpetas.clear();
+
+                        carpetas.add(carpetaSha[0]);
+
+                    }  catch (Exception e) {
+
+                    }
+
+                }
+
+            });
+
+            thread.start();
+
+        }
+
+        catch (Exception e) {
+
+        }
+
+        return carpetas.getLast();
+
+    }
+
     private void explorar(boolean carpeta) {
 
         ExFilePicker exFilePicker = new ExFilePicker();
@@ -193,7 +241,7 @@ public class MainActivity extends AppCompatActivity {
 
         exFilePicker.setChoiceType(ExFilePicker.ChoiceType.DIRECTORIES);
 
-        if(Integer.parseInt(datoNewFolder)==1){
+       /* if(Integer.parseInt(datoNewFolder)==1){
             exFilePicker.setNewFolderButtonDisabled(true);
         }
 
@@ -204,7 +252,7 @@ public class MainActivity extends AppCompatActivity {
         if(Integer.parseInt(datoHidden)==1){
             exFilePicker.setHideHiddenFilesEnabled(true);
         }
-
+*/
 
 // explode                + datoExtensionesAllow)
 
@@ -223,96 +271,153 @@ public class MainActivity extends AppCompatActivity {
         exFilePicker.start(this, EX_FILE_PICKER_RESULT);
 
     }
+
     public void comprobarSha(View v) throws JSONException, IOException {
 
-        String nombreArchivo;
+        try {
 
-        String ruta;
+            config = Metodos.leer("/storage/emulated/0/peridroid.dat");
 
-        String extension;
-
-        String carpetaSha = saberNombreCarpeta();
-
-        JSONObject json;
-
-        JSONArray imagenesBD;
-
-        int respuesta;
-
-        for (int i = 0; i < listaSha.size(); i++) {
-
-            json = Metodos.readJsonFromUrl("http://server/api.php?sha256='" + listaSha.get(i)+"'");
-
-            imagenesBD = json.getJSONArray("imagenes_bd");
-
-            respuesta=Integer.parseInt(imagenesBD.get(0).toString());
-
-            if(respuesta==200){
-
-                CheckBox borrarImagenes = findViewById(R.id.borrarImagenes);
-
-                if(borrarImagenes.isSelected()){
-
-                    Metodos.eliminarFichero(imagenes.get(i));
-
-                }
-
-                else{
-
-                    Metodos.moverArchivo(imagenes.get(i), directorioActual +"/PeriDroid/imagenes_subidas");
-
-                }
-
+            if(config.isEmpty()){
+                Toast.makeText(getApplicationContext(),"Por favor, configura el servidor",Toast.LENGTH_SHORT).show();
             }
+            else {
 
-            else{
+                final String[] carpetaSha = {saberNombreCarpeta()};
 
-                if(imagenes.size()>10){
+                if (!carpetaSha[0].isEmpty()) {
 
-                    int indice=0;
+                    String nombreArchivo;
 
-                    String directorioSha;
+                    String ruta;
 
-                    for(int vueltas=0;vueltas<imagenes.size()/10;vueltas++){
+                    String extension;
 
-                        directorioSha=carpetaSha;
+                    Metodos.crearCarpeta(directorioActual + "/PeriDroid/imagenes_para_subir/" + carpetaSha[0]);
+                    
+                    int resultado;
 
-                        directorioSha+=vueltas;
+                    final int[] status = new int[1];
 
-                        for(int x=0;x<10;x++){
+                    for (int i = 0; i < config.size(); i++) {
+                        System.out.println("dato: " + config.get(i));
+                    }
 
-                            if(indice<imagenes.size()){
+                    for (int i = 0; i < listaSha.size(); i++) {
 
-                                Metodos.moverArchivo(imagenes.get(i),directorioActual +"/PeriDroid/imagenes_para_subir/"+directorioSha);
+
+                        int finalContador = i;
+
+                        Thread thread = new Thread(new Runnable() {
+
+                            @Override
+
+                            public void run() {
+
+                                try {
+
+                                    URL url = new URL(config.get(0)+"/api/api.php?sha256='" +Metodos.getSHA256Checksum(listaSha.get(finalContador)) + "'");
+
+                                    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+                                    connection.setDoOutput(true);
+
+                                    connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+
+                                    connection.setRequestMethod("GET");
+
+                                    String line;
+
+                                    status[0] = connection.getResponseCode();
+                                    System.out.println("RESPUESTA: "+status[0]);
+                                    System.out.println("archivo: "+imagenes.get(finalContador));
+                                    if (status[0] == 200) {
+
+                                        CheckBox borrarImagenes = findViewById(R.id.borrarImagenes);
+
+                                        if (borrarImagenes.isSelected()) {
+
+                                           // Metodos.eliminarFichero(imagenes.get(finalContador));
+
+                                        } else {
+
+                                           // Metodos.moverArchivo(imagenes.get(finalContador), directorioActual + "/PeriDroid/imagenes_subidas");
+
+                                        }
+
+                                    }
+
+                                    else {
+
+                                        if (imagenes.size() > 10) {
+
+                                            int indice = 0;
+
+                                            String directorioSha;
+
+                                            for (int vueltas = 0; vueltas < imagenes.size() / 10; vueltas++) {
+
+                                                directorioSha = carpetaSha[0];
+
+                                                directorioSha += vueltas;
+
+                                                for (int x = 0; x < 10; x++) {
+
+                                                    if (indice < imagenes.size()) {
+
+                                                       // Metodos.moverArchivo(imagenes.get(x), directorioActual + "/PeriDroid/imagenes_para_subir/" + directorioSha+"/"+imagenes.get(x));
+
+                                                    }
+
+                                                }
+
+                                            }
+
+                                        } else {
+
+                                            for (int x = 0; x < imagenes.size(); x++) {
+
+                                                System.out.println("MUEVO: "+rutaimagenes.get(x)+ " A "+ directorioActual + "/PeriDroid/imagenes_para_subir/" + carpetaSha[0]+"/"+imagenes.get(x));
+
+                                                Metodos.moverArchivo(new File(rutaimagenes.get(x)),new File(directorioActual + "/PeriDroid/imagenes_para_subir/" + carpetaSha[0]+"/"+imagenes.get(x)));
+                                            }
+
+                                        }
+
+                                    }
+
+                                }
+
+                                catch (Exception e1) {
+                                    e1.printStackTrace();
+                                }
 
                             }
 
-                        }
+                        });
 
-                    }
+                        thread.start();
 
-                }
 
-                else{
-
-                    carpetaSha = saberNombreCarpeta();
-
-                    for(int x=0;x<imagenes.size();x++){
-                        Metodos.moverArchivo(imagenes.get(i),directorioActual +"/PeriDroid/imagenes_para_subir/"+carpetaSha+1);
                     }
 
                 }
 
             }
+        }
 
+        catch (Exception e){
+            e.printStackTrace();
         }
 
     }
+
     public void abrirCarpeta( View v) {
 
-       explorar(true);
+        explorar(true);
 
     }
+
     public void config(View v){
 
         setContentView(R.layout.activity_fragmeng);
@@ -322,6 +427,7 @@ public class MainActivity extends AppCompatActivity {
         String message = intent.getStringExtra(FragmengActivity.EXTRA_MESSAGE);
 
     }
+
     public void atras(View v){
 
         try {
@@ -339,13 +445,15 @@ public class MainActivity extends AppCompatActivity {
         }
 
     }
+
     public void abrirArchivo( View v) {
 
         explorar(false);
 
     }
-    public void limpiar(View v){
 
+    public void limpiar(View v){
+        rutaimagenes.clear();
         imagenes.clear();
 
         carpetas.clear();
@@ -359,19 +467,40 @@ public class MainActivity extends AppCompatActivity {
         }
 
     }
+
     @Override
     public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+
         if (requestCode == EX_FILE_PICKER_RESULT) {
+
             ExFilePickerResult result = ExFilePickerResult.getFromIntent(data);
+
             if (result != null && result.getCount() > 0) {
+
                 StringBuilder stringBuilder = new StringBuilder();
+
+                String archivo;
+
                 for (int i = 0; i < result.getCount(); i++) {
 
-                    System.out.println("archivo: "+result.getNames().get(i));
+                    archivo=result.getPath()+result.getNames().get(i);
+
+                    if(!listaSha.contains(archivo)) {
+
+                        imagenes.add(result.getNames().get(i));
+
+                        rutaimagenes.add(archivo);
+
+                        listaSha.add(Metodos.getSHA256Checksum(archivo));
+
+                    }
 
                 }
 
             }
+
         }
+
     }
+
 }

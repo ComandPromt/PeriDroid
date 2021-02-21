@@ -10,6 +10,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -28,7 +29,7 @@ import java.util.LinkedList;
 public abstract class Metodos {
 
     public static LinkedList<String> leer(String file)
-            throws IOException, FileNotFoundException, ClassNotFoundException {
+      {
 
         LinkedList<String> arrayList2 = new LinkedList<String>();
 
@@ -40,7 +41,17 @@ public abstract class Metodos {
 
                 ObjectInputStream leyendoFichero = new ObjectInputStream(new FileInputStream(file));
 
-                arrayList2.add(leyendoFichero.readObject().toString());
+                String[] exploded=leyendoFichero.readObject().toString().split(" ");
+
+                for(int i=0;i<exploded.length;i++){
+
+                    exploded[i]=exploded[i].replace("[","");
+
+                    exploded[i]=exploded[i].replace("]","");
+
+                    arrayList2.add(exploded[i]);
+
+                }
 
                 leyendoFichero.close();
 
@@ -49,6 +60,7 @@ public abstract class Metodos {
         }
 
         catch (Exception e) {
+            e.printStackTrace();
         }
 
         return arrayList2;
@@ -80,19 +92,29 @@ public abstract class Metodos {
     }
 
     @SuppressLint("NewApi")
-    public static void moverArchivo(String origen, String destino) {
 
-        try {
+    public static void moverArchivo(File origen, File destino) throws IOException {
 
-            Files.move(FileSystems.getDefault().getPath(origen), FileSystems.getDefault().getPath(destino),
-                    StandardCopyOption.REPLACE_EXISTING);
+        FileInputStream var2 = new FileInputStream(origen);
+
+        FileOutputStream var3 = new FileOutputStream(destino);
+
+        byte[] var4 = new byte[1024];
+
+        int var5;
+
+        while((var5 = var2.read(var4)) > 0) {
+            var3.write(var4, 0, var5);
         }
 
-        catch (IOException e) {
-            //
-        }
+        var2.close();
+
+        var3.close();
+
+        origen.delete();
 
     }
+
     public static void eliminarFichero(String archivo) {
 
         File fichero = new File(archivo);
@@ -390,4 +412,11 @@ public abstract class Metodos {
         return result;
     }
 
+    public static void crearCarpeta(String ruta) {
+
+        File directorio = new File(ruta);
+
+        directorio.mkdir();
+
+    }
 }
